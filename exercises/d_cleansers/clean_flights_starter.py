@@ -100,6 +100,18 @@ def question1(frame: DataFrame) -> DataFrame:
     print(f"aantal flights: {AA_no_flights}")
     return frame
 
+def question4(frame: DataFrame) -> DataFrame:
+    frame.show(n=1, truncate=False, vertical=True)
+
+    frame = frame.filter(frame.YEAR == '2011')
+    results = {}
+    for reason in ['CARRIER_DELAY', 'WEATHER_DELAY', 'NAS_DELAY', 'SECURITY_DELAY', 'LATE_AIRCRAFT_DELAY']: 
+        results[reason] = frame.filter(frame[reason] != 'null').count()
+
+
+    print(f"result: {results}")
+    return frame
+
 if __name__ == "__main__":
     # use relative paths, so that the location of this project on your system
     # won't mean editing paths
@@ -113,5 +125,5 @@ if __name__ == "__main__":
     # Extract
     frame = read_data(resources_dir / "flight")
     # Transform
-    question1(frame)
+    question4(frame)
      
