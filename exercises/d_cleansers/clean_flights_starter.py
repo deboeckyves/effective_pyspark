@@ -18,6 +18,9 @@
 from pathlib import Path
 
 from pyspark.sql import SparkSession, DataFrame
+import pyspark.sql.functions as F
+from pyspark.sql.types import IntegerType,BooleanType,DateType
+
 
 
 def read_data(path: Path):
@@ -38,13 +41,22 @@ def read_data(path: Path):
 
 
 def clean(frame: DataFrame) -> DataFrame:
+    frame.printSchema()
+    #frame.show()
+    #frame.show(n=1, truncate=False, vertical=True)
+    frame = frame.withColumnRenamed("FL_DATE","FLIGHT_DATE")
+    frame = frame.withColumn('FLIGHT_DATE', frame['FLIGHT_DATE'].cast('date'))
+    frame = frame.drop("_c44")
+    frame.show(n=1, truncate=False, vertical=True)
+    frame.printSchema()
+
     return frame
 
 
 if __name__ == "__main__":
     # use relative paths, so that the location of this project on your system
     # won't mean editing paths
-    path_to_exercises = Path(__file__).parents[1]
+    path_to_exercises =  Path("/workspace/effective_pyspark/exercises") 
     resources_dir = path_to_exercises / "resources"
     target_dir = path_to_exercises / "target"
     # Create the folder where the results of this script's ETL-pipeline will
@@ -52,13 +64,34 @@ if __name__ == "__main__":
     target_dir.mkdir(exist_ok=True)
 
     # Extract
-    frame = read_data(resources_dir / "flights")
+    frame = read_data(resources_dir / "flight")
     # Transform
     cleaned_frame = clean(frame)
     # Load
+    compression_type = 'gzip'
+    target_path = str(target_dir / "cleaned_flights")
     cleaned_frame.write.parquet(
-        path=str(target_dir / "cleaned_flights"),
+        path=target_path,
         mode="overwrite",
         # Exercise: how much bigger are the files when the compression codec is set to "uncompressed"? And 'gzip'?
-        compression="snappy",
+        compression=compression_type,
     )
+
+    # import module
+    import os
+    # assign size
+    size = 0
+    
+    # assign folder path
+    Folderpath = '.'  
+    
+    # get size
+    for ele in os.scandir(target_path):
+        size+=os.stat(ele).st_size
+        
+    dict = {'snappy': 63147169, 'uncompressed': 67053921, 'gzip': 55223112}
+    for compression_type, value in dict.items():
+        print(f"size for {compression_type}: {value}")
+        print(f"this is {value / dict['uncompressed'] *100}% of uncompressed")
+
+
