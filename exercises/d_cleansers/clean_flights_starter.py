@@ -20,7 +20,8 @@ from pathlib import Path
 from pyspark.sql import SparkSession, DataFrame
 import pyspark.sql.functions as F
 from pyspark.sql.types import IntegerType,BooleanType,DateType
-
+from pyspark.sql.window import Window
+from pyspark.sql.functions import *
 
 
 def read_data(path: Path):
@@ -52,6 +53,52 @@ def clean(frame: DataFrame) -> DataFrame:
 
     return frame
 
+def agg(frame: DataFrame) -> DataFrame:
+
+    #frame.show(n=1, truncate=False, vertical=True)
+
+    grouped_df = frame.groupBy("UNIQUE_CARRIER").agg(F.avg("CARRIER_DELAY").alias("avg_delay"))
+    grouped_df = grouped_df.orderBy(grouped_df["avg_delay"].desc())
+
+    df2 = read_data("/workspace/effective_pyspark/exercises/resources/carriers.csv")
+
+    grouped_df.show()
+
+    df2.show()
+
+    joined_df = grouped_df.join(df2,grouped_df.UNIQUE_CARRIER ==  df2.CARRIER,"left")
+
+
+    latest = joined_df.groupBy(["UNIQUE_CARRIER",'avg_delay']).agg(F.max("START_DATE_SOURCE").alias("DATE")).select(['UNIQUE_CARRIER', 'avg_delay', 'DATE'])
+    latest = latest.withColumnRenamed('avg_delay', 'avg_delay_')
+
+    cond = [latest.UNIQUE_CARRIER ==  joined_df.UNIQUE_CARRIER, latest.DATE ==  joined_df.START_DATE_SOURCE]
+    result = latest.join(joined_df, cond ,"left").select(['CARRIER', 'CARRIER_NAME', 'avg_delay'])
+    result = result.orderBy(grouped_df["avg_delay"].desc())
+
+    #w = Window.partitionBy('UNIQUE_CARRIER', 'START_DATE_SOURCE').orderBy(desc('START_DATE_SOURCE'))
+
+    #joined_df = joined_df.withColumn("rn",row_number().over(w))
+
+    #joined_df = joined_df.withColumn("rn",row_number().over(w)).filter(col("rn") == 1).drop("second","rn")
+
+
+
+    result.show()
+
+
+    AA_no_flights = frame.filter('UNIQUE_CARRIER' == 'AA').count()
+
+
+    return frame
+
+
+def question1(frame: DataFrame) -> DataFrame:
+
+    AA_no_flights = frame.filter(F.col('UNIQUE_CARRIER') == 'AA').filter(F.col('YEAR') == 2011).count()
+
+    print(f"aantal flights: {AA_no_flights}")
+    return frame
 
 if __name__ == "__main__":
     # use relative paths, so that the location of this project on your system
@@ -66,32 +113,5 @@ if __name__ == "__main__":
     # Extract
     frame = read_data(resources_dir / "flight")
     # Transform
-    cleaned_frame = clean(frame)
-    # Load
-    compression_type = 'gzip'
-    target_path = str(target_dir / "cleaned_flights")
-    cleaned_frame.write.parquet(
-        path=target_path,
-        mode="overwrite",
-        # Exercise: how much bigger are the files when the compression codec is set to "uncompressed"? And 'gzip'?
-        compression=compression_type,
-    )
-
-    # import module
-    import os
-    # assign size
-    size = 0
-    
-    # assign folder path
-    Folderpath = '.'  
-    
-    # get size
-    for ele in os.scandir(target_path):
-        size+=os.stat(ele).st_size
-        
-    dict = {'snappy': 63147169, 'uncompressed': 67053921, 'gzip': 55223112}
-    for compression_type, value in dict.items():
-        print(f"size for {compression_type}: {value}")
-        print(f"this is {value / dict['uncompressed'] *100}% of uncompressed")
-
-
+    question1(frame)
+     
